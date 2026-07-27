@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['pdf-parse'],
+  experimental: {
+    turbopack: {
+      resolveAlias: {
+        canvas: { browser: false },
+        encoding: { browser: false },
+      },
+    },
+  },
   webpack: (config) => {
     config.resolve.alias['canvas'] = false
     config.resolve.alias['encoding'] = false
