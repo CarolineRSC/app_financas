@@ -98,6 +98,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('parse-pdf error:', message)
-    return NextResponse.json({ error: `Erro ao processar: ${message}` }, { status: 500 })
+    return NextResponse.json({ error: 'Erro ao processar o PDF. Tente novamente.' }, { status: 500 })
   }
 }

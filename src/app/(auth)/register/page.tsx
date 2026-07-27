@@ -22,8 +22,12 @@ export default function RegisterPage() {
       setError('As senhas não coincidem.')
       return
     }
-    if (password.length < 6) {
-      setError('A senha deve ter no mínimo 6 caracteres.')
+    if (password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
+      return
+    }
+    if (!/\d/.test(password)) {
+      setError('A senha deve conter pelo menos um número.')
       return
     }
 
@@ -32,28 +36,65 @@ export default function RegisterPage() {
     const { error } = await supabase.auth.signUp({ email, password })
 
     if (error) {
-      setError(error.message === 'User already registered'
-        ? 'Este e-mail já está cadastrado.'
-        : 'Erro ao criar conta. Tente novamente.')
+      setError(
+        error.message === 'User already registered'
+          ? 'Este e-mail já está cadastrado.'
+          : 'Erro ao criar conta. Tente novamente.'
+      )
       setLoading(false)
       return
     }
 
     setSuccess(true)
     setLoading(false)
-
-    setTimeout(() => router.push('/login'), 3000)
   }
 
   if (success) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="text-4xl mb-4">✉️</div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Conta criada!</h2>
-          <p className="text-sm text-gray-500">
-            Verifique seu e-mail para confirmar o cadastro. Você será redirecionado para o login.
-          </p>
+        <div className="w-full max-w-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 mx-auto mb-4">
+              <span className="text-3xl">✉️</span>
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Confirme seu e-mail
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Enviamos um link de confirmação para:
+            </p>
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-4 py-2.5 mb-5">
+              <p className="text-sm font-semibold text-blue-700">{email}</p>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-5 text-left">
+              <div className="flex gap-2">
+                <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 mb-0.5">
+                    Não encontrou o e-mail?
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    Verifique também a pasta de <strong>Spam</strong> ou{' '}
+                    <strong>Lixo Eletrônico</strong> — às vezes o e-mail de
+                    confirmação cai por lá.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 mb-5">
+              Clique no link do e-mail para ativar sua conta e depois faça o login.
+            </p>
+
+            <Link
+              href="/login"
+              className="block w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors text-center"
+            >
+              Ir para o login
+            </Link>
+          </div>
         </div>
       </div>
     )
