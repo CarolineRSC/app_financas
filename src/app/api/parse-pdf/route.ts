@@ -81,9 +81,8 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Use internal path to avoid pdf-parse loading test files on import
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse/lib/pdf-parse.js')
+    const pdfParse = require('pdf-parse')
     const parsed = await pdfParse(buffer)
 
     const rows = parseBofA(parsed.text)
