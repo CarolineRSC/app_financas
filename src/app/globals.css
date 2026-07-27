@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
+/* Habilita dark mode via classe .dark no <html> */
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
 }
 
 body {
@@ -10,6 +18,7 @@ body {
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {
