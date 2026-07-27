@@ -73,6 +73,12 @@ export async function POST(req: NextRequest) {
     const file = form.get('file') as File | null
     if (!file) return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 })
 
+    if (!file.type.includes('pdf'))
+      return NextResponse.json({ error: 'Apenas arquivos PDF são aceitos.' }, { status: 400 })
+
+    if (file.size > 10 * 1024 * 1024)
+      return NextResponse.json({ error: 'Arquivo muito grande. Máximo permitido: 10MB.' }, { status: 400 })
+
     const buffer = Buffer.from(await file.arrayBuffer())
 
     // Use internal path to avoid pdf-parse loading test files on import
