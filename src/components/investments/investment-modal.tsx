@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Investment, InvestmentType } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { usePreferences } from '@/lib/preferences-context'
 
 interface Props {
   open: boolean
@@ -13,19 +14,21 @@ interface Props {
 
 const today = new Date().toISOString().split('T')[0]
 
-const TYPES: { value: InvestmentType; label: string; icon: string; desc: string }[] = [
-  { value: 'savings',      label: 'Poupança',        icon: '🏦', desc: 'Caderneta de poupança' },
-  { value: 'high_yield',   label: 'Conta Rendimento', icon: '💰', desc: 'Ex: Nubank, Inter, PicPay' },
-  { value: 'stocks',       label: 'Ações',            icon: '📈', desc: 'Ações na bolsa (B3)' },
-  { value: 'fixed_income', label: 'Renda Fixa',       icon: '📄', desc: 'CDB, LCI, Tesouro Direto' },
-  { value: 'crypto',       label: 'Cripto',           icon: '🪙', desc: 'Bitcoin, Ethereum etc.' },
-  { value: 'other',        label: 'Outros',           icon: '📁', desc: 'Outros tipos' },
-]
-
 const inputCls = 'w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3.5 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-none transition-all focus:border-blue-500 focus:bg-white dark:focus:bg-gray-600 focus:ring-2 focus:ring-blue-100'
 
 export default function InvestmentModal({ open, onClose, onSaved, investment }: Props) {
   const isEdit = !!investment
+  const { tr, prefs } = usePreferences()
+  const en = prefs.language === 'en'
+
+  const TYPES: { value: InvestmentType; label: string; icon: string; desc: string }[] = [
+    { value: 'savings',      label: en ? 'Savings'    : 'Poupança',         icon: '🏦', desc: en ? 'Savings account'                : 'Caderneta de poupança'   },
+    { value: 'high_yield',   label: en ? 'High Yield' : 'Conta Rendimento', icon: '💰', desc: en ? 'e.g. Marcus, Ally, SoFi'         : 'Ex: Nubank, Inter'       },
+    { value: 'stocks',       label: en ? 'Stocks'     : 'Ações',            icon: '📈', desc: en ? 'Stocks & ETFs'                   : 'Ações na bolsa (B3)'    },
+    { value: 'fixed_income', label: en ? 'Bonds'      : 'Renda Fixa',       icon: '📄', desc: en ? 'Bonds, CDs, Treasuries'          : 'CDB, LCI, Tesouro Direto'},
+    { value: 'crypto',       label: en ? 'Crypto'     : 'Cripto',           icon: '🪙', desc: en ? 'Bitcoin, Ethereum, etc.'         : 'Bitcoin, Ethereum etc.'  },
+    { value: 'other',        label: tr.others,                               icon: '📁', desc: en ? 'Other investment types'          : 'Outros tipos'            },
+  ]
 
   const [name,           setName]           = useState('')
   const [type,           setType]           = useState<InvestmentType>('high_yield')
@@ -61,14 +64,27 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
 
     const invested = parseFloat(investedAmount.replace(',', '.'))
     const current  = parseFloat(currentValue.replace(',', '.'))
-    if (isNaN(invested) || invested < 0) { setError('Informe um valor investido válido.'); return }
-    if (isNaN(current)  || current  < 0) { setError('Informe o valor atual válido.'); return }
-    if (!name.trim()) { setError('Informe um nome.'); return }
+    if (isNaN(invested) || invested < 0) {
+      setError(en ? 'Enter a valid invested amount.' : 'Informe um valor investido válido.')
+      return
+    }
+    if (isNaN(current) || current < 0) {
+      setError(en ? 'Enter a valid current value.' : 'Informe o valor atual válido.')
+      return
+    }
+    if (!name.trim()) {
+      setError(en ? 'Enter a name.' : 'Informe um nome.')
+      return
+    }
 
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
+    if (!user) {
+      setError(en ? 'Session expired. Please sign in again.' : 'Sessão expirada. Faça login novamente.')
+      setLoading(false)
+      return
+    }
 
     const payload = {
       name: name.trim(),
@@ -81,11 +97,11 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
 
     if (isEdit && investment) {
       const { data, error: err } = await supabase.from('investments').update(payload).eq('id', investment.id).select().single()
-      if (err) { setError('Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
       onSaved(data as Investment, true)
     } else {
       const { data, error: err } = await supabase.from('investments').insert({ ...payload, user_id: user.id }).select().single()
-      if (err) { setError('Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
       onSaved(data as Investment, false)
     }
     setLoading(false)
@@ -100,7 +116,7 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 shadow-xl border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            {isEdit ? 'Editar investimento' : 'Novo investimento'}
+            {isEdit ? (en ? 'Edit investment' : 'Editar investimento') : tr.addInvestment}
           </h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -112,7 +128,9 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Type selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {en ? 'Type' : 'Tipo'}
+            </label>
             <div className="grid grid-cols-3 gap-2">
               {TYPES.map(t => (
                 <button key={t.value} type="button" onClick={() => setType(t.value)}
@@ -130,36 +148,50 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nome / Instituição</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {en ? 'Name / Institution' : 'Nome / Instituição'}
+            </label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
-              required maxLength={100} placeholder={`Ex: ${TYPES.find(t => t.value === type)?.desc}`} className={inputCls} />
+              required maxLength={100}
+              placeholder={`e.g. ${TYPES.find(t => t.value === type)?.desc}`}
+              className={inputCls} />
           </div>
 
           {/* Amounts */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valor investido (R$)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {en ? 'Amount invested' : 'Valor investido'}
+              </label>
               <input type="number" value={investedAmount} onChange={e => setInvestedAmount(e.target.value)}
-                required min="0" step="0.01" placeholder="0,00" className={inputCls} />
+                required min="0" step="0.01" placeholder="0.00" className={inputCls} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valor atual (R$)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {en ? 'Current value' : 'Valor atual'}
+              </label>
               <input type="number" value={currentValue} onChange={e => setCurrentValue(e.target.value)}
-                required min="0" step="0.01" placeholder="0,00" className={inputCls} />
+                required min="0" step="0.01" placeholder="0.00" className={inputCls} />
             </div>
           </div>
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Última atualização</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {en ? 'Last updated' : 'Última atualização'}
+            </label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputCls} />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Observações (opcional)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {en ? 'Notes (optional)' : 'Observações (opcional)'}
+            </label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-              maxLength={300} placeholder="Ex: Vencimento em Dez 2026..." className={inputCls} />
+              maxLength={300}
+              placeholder={en ? 'e.g. Matures Dec 2026...' : 'Ex: Vencimento em Dez 2026...'}
+              className={inputCls} />
           </div>
 
           {error && (
@@ -171,11 +203,11 @@ export default function InvestmentModal({ open, onClose, onSaved, investment }: 
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              Cancelar
+              {tr.cancel}
             </button>
             <button type="submit" disabled={loading}
               className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-60">
-              {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar'}
+              {loading ? tr.loading : isEdit ? tr.saveChanges : tr.add}
             </button>
           </div>
         </form>

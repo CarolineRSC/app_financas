@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Transaction, TransactionType, Category, ExpenseType } from '@/lib/types'
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/categories'
 import { createClient } from '@/lib/supabase/client'
+import { usePreferences } from '@/lib/preferences-context'
 
 interface Props {
   open: boolean
@@ -18,15 +19,17 @@ const inputCls = 'w-full rounded-lg border border-gray-200 dark:border-gray-600 
 
 export default function TransactionModal({ open, onClose, onSaved, transaction }: Props) {
   const isEdit = !!transaction
+  const { tr, prefs } = usePreferences()
+  const en = prefs.language === 'en'
 
-  const [type,         setType]         = useState<TransactionType>('expense')
-  const [expenseType,  setExpenseType]  = useState<ExpenseType>('variable')
-  const [description,  setDescription]  = useState('')
-  const [amount,       setAmount]       = useState('')
-  const [date,         setDate]         = useState(today)
-  const [category,     setCategory]     = useState<Category>('Alimentação')
-  const [loading,      setLoading]      = useState(false)
-  const [error,        setError]        = useState('')
+  const [type,        setType]        = useState<TransactionType>('expense')
+  const [expenseType, setExpenseType] = useState<ExpenseType>('variable')
+  const [description, setDescription] = useState('')
+  const [amount,      setAmount]      = useState('')
+  const [date,        setDate]        = useState(today)
+  const [category,    setCategory]    = useState<Category>('Alimentação')
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState('')
 
   useEffect(() => {
     if (transaction) {
@@ -57,14 +60,23 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
     setError('')
 
     const numAmount = parseFloat(amount.replace(',', '.'))
-    if (isNaN(numAmount) || numAmount <= 0) { setError('Informe um valor válido maior que zero.'); return }
-    if (!description.trim()) { setError('Informe uma descrição.'); return }
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setError(en ? 'Enter a valid amount greater than zero.' : 'Informe um valor válido maior que zero.')
+      return
+    }
+    if (!description.trim()) {
+      setError(en ? 'Enter a description.' : 'Informe uma descrição.')
+      return
+    }
 
     setLoading(true)
     const supabase = createClient()
-
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
+    if (!user) {
+      setError(en ? 'Session expired. Please sign in again.' : 'Sessão expirada. Faça login novamente.')
+      setLoading(false)
+      return
+    }
 
     const payload = {
       description: description.trim(),
@@ -77,11 +89,11 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
 
     if (isEdit && transaction) {
       const { data, error: err } = await supabase.from('transactions').update(payload).eq('id', transaction.id).select().single()
-      if (err) { setError('Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
       onSaved(data as Transaction, true)
     } else {
       const { data, error: err } = await supabase.from('transactions').insert({ ...payload, user_id: user.id }).select().single()
-      if (err) { setError('Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
       onSaved(data as Transaction, false)
     }
     setLoading(false)
@@ -94,10 +106,9 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative z-10 w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 shadow-xl border border-gray-100 dark:border-gray-700 animate-fade-in">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            {isEdit ? 'Editar transação' : 'Nova transação'}
+            {isEdit ? (en ? 'Edit transaction' : 'Editar transação') : tr.addTransaction}
           </h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -107,9 +118,11 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Receita / Despesa */}
+          {/* Type: expense / income */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {en ? 'Type' : 'Tipo'}
+            </label>
             <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700">
               {(['expense', 'income'] as TransactionType[]).map((t) => (
                 <button key={t} type="button" onClick={() => setType(t)}
@@ -118,15 +131,17 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
                       ? t === 'expense' ? 'bg-red-500 text-white shadow-sm' : 'bg-green-500 text-white shadow-sm'
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}>
-                  {t === 'expense' ? 'Despesa' : 'Receita'}
+                  {t === 'expense' ? `↓ ${tr.expenseLabel}` : `↑ ${tr.incomeLabel}`}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Fixo / Variável */}
+          {/* Expense type: fixed / variable */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo de gasto</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {en ? 'Expense type' : 'Tipo de gasto'}
+            </label>
             <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700">
               {(['variable', 'fixed'] as ExpenseType[]).map((et) => (
                 <button key={et} type="button" onClick={() => setExpenseType(et)}
@@ -135,35 +150,45 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}>
-                  {et === 'fixed' ? '📌 Fixo' : '🔄 Variável'}
+                  {et === 'fixed' ? `📌 ${tr.fixed}` : `🔄 ${tr.variable}`}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Descrição */}
+          {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {tr.description}
+            </label>
             <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-              required maxLength={200} placeholder="Ex: Supermercado, Salário..." className={inputCls} />
+              required maxLength={200}
+              placeholder={en ? 'e.g. Grocery, Salary...' : 'Ex: Supermercado, Salário...'}
+              className={inputCls} />
           </div>
 
-          {/* Valor + Data */}
+          {/* Amount + Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valor (R$)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {tr.amount}
+              </label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                required min="0.01" step="0.01" placeholder="0,00" className={inputCls} />
+                required min="0.01" step="0.01" placeholder="0.00" className={inputCls} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Data</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                {tr.date}
+              </label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputCls} />
             </div>
           </div>
 
-          {/* Categoria */}
+          {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Categoria</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              {tr.category}
+            </label>
             <select value={category} onChange={e => setCategory(e.target.value as Category)} className={inputCls}>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -178,11 +203,11 @@ export default function TransactionModal({ open, onClose, onSaved, transaction }
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              Cancelar
+              {tr.cancel}
             </button>
             <button type="submit" disabled={loading}
               className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-              {loading ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Adicionar'}
+              {loading ? tr.loading : isEdit ? tr.saveChanges : tr.add}
             </button>
           </div>
         </form>

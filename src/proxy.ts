@@ -34,7 +34,8 @@ export async function proxy(request: NextRequest) {
                       pathname.startsWith('/transactions') ||
                       pathname.startsWith('/accounts') ||
                       pathname.startsWith('/investments')
-  const isAuthPage = pathname === '/login' || pathname === '/register'
+  const isAuthPage = pathname === '/login' || pathname === '/register' ||
+                     pathname === '/reset-password' || pathname === '/update-password'
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone()

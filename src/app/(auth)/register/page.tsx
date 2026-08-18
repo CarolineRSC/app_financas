@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [consent, setConsent] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -28,6 +29,10 @@ export default function RegisterPage() {
     }
     if (!/\d/.test(password)) {
       setError('A senha deve conter pelo menos um número.')
+      return
+    }
+    if (!consent) {
+      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.')
       return
     }
 
@@ -108,7 +113,7 @@ export default function RegisterPage() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-sm">
               FF
             </div>
-            <span className="font-semibold text-gray-900 text-lg">Finança Fácil</span>
+            <span className="font-semibold text-gray-900 text-lg">Simple Budget</span>
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Criar conta grátis</h1>
           <p className="text-sm text-gray-500 mt-1">Comece a controlar suas finanças hoje</p>
@@ -158,6 +163,26 @@ export default function RegisterPage() {
               />
             </div>
 
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-xs text-gray-600 leading-relaxed">
+                Li e aceito os{' '}
+                <Link href="/terms" target="_blank" className="text-blue-600 hover:underline font-medium">
+                  Termos de Uso
+                </Link>{' '}
+                e a{' '}
+                <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline font-medium">
+                  Política de Privacidade
+                </Link>
+                . Entendo que meus dados serão armazenados nos EUA e que posso exportar ou excluir minha conta a qualquer momento.
+              </span>
+            </label>
+
             {error && (
               <div className="rounded-lg bg-red-50 border border-red-100 px-3.5 py-2.5 text-sm text-red-700">
                 {error}
@@ -166,7 +191,7 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !consent}
               className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? 'Criando conta...' : 'Criar conta'}

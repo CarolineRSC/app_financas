@@ -5,20 +5,24 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { href: '/dashboard',    label: 'Dashboard',     icon: '📊' },
-  { href: '/transactions', label: 'Transações',    icon: '💸' },
-  { href: '/accounts',     label: 'Contas',        icon: '🏦' },
-  { href: '/investments',  label: 'Investimentos', icon: '📈' },
-]
+import { usePreferences } from '@/lib/preferences-context'
+import { Language, Currency } from '@/lib/i18n'
 
 export default function AppSidebar({ userEmail }: { userEmail: string }) {
   const pathname  = usePathname()
   const router    = useRouter()
+  const { tr, prefs, setLanguage, setCurrency } = usePreferences()
   const [mobileOpen, setMobileOpen]   = useState(false)
   const [signingOut, setSigningOut]   = useState(false)
   const [dark, setDark]               = useState(false)
+
+  const navItems = [
+    { href: '/dashboard',    label: tr.dashboard,    icon: '📊' },
+    { href: '/transactions', label: tr.transactions, icon: '💸' },
+    { href: '/accounts',     label: tr.accounts,     icon: '🏦' },
+    { href: '/investments',  label: tr.investments,  icon: '📈' },
+    { href: '/settings',     label: tr.settings,     icon: '⚙️' },
+  ]
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
@@ -49,9 +53,9 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-gray-100 dark:border-gray-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs flex-shrink-0">
-          FF
+          SB
         </div>
-        <span className="font-semibold text-gray-900 dark:text-white">Finança Fácil</span>
+        <span className="font-semibold text-gray-900 dark:text-white">Simple Budget</span>
       </div>
 
       {/* Nav */}
@@ -77,15 +81,58 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
         })}
       </nav>
 
-      {/* Theme toggle + User */}
+      {/* Preferences + Theme + User */}
       <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-2">
+
+        {/* Language + Currency toggles */}
+        <div className="flex gap-2 px-1">
+          <div className="flex-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 px-1">{tr.language}</p>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-semibold">
+              {(['en', 'pt'] as Language[]).map(lang => (
+                <button
+                  key={lang}
+                  onClick={() => setLanguage(lang)}
+                  className={cn(
+                    'flex-1 py-1.5 transition-colors',
+                    prefs.language === lang
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  )}
+                >
+                  {lang === 'en' ? 'EN' : 'PT'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 px-1">{tr.currency}</p>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-semibold">
+              {(['USD', 'BRL'] as Currency[]).map(cur => (
+                <button
+                  key={cur}
+                  onClick={() => setCurrency(cur)}
+                  className={cn(
+                    'flex-1 py-1.5 transition-colors',
+                    prefs.currency === cur
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  )}
+                >
+                  {cur === 'USD' ? '$' : 'R$'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Dark mode toggle */}
         <button
           onClick={toggleTheme}
           className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
         >
           <span className="text-base">{dark ? '☀️' : '🌙'}</span>
-          {dark ? 'Modo claro' : 'Modo escuro'}
+          {dark ? tr.lightMode : tr.darkMode}
         </button>
 
         {/* User email */}
@@ -100,7 +147,7 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
           className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors disabled:opacity-60"
         >
           <span>🚪</span>
-          {signingOut ? 'Saindo...' : 'Sair'}
+          {signingOut ? tr.signingOut : tr.signOut}
         </button>
       </div>
     </>
@@ -111,8 +158,8 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
       {/* Mobile header */}
       <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 lg:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs">FF</div>
-          <span className="font-semibold text-gray-900 dark:text-white text-sm">Finança Fácil</span>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-xs">SB</div>
+          <span className="font-semibold text-gray-900 dark:text-white text-sm">Simple Budget</span>
         </div>
         <div className="flex items-center gap-2">
           <button

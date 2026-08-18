@@ -8,7 +8,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { formatCurrency } from '@/lib/utils'
 
 interface ChartEntry {
   name: string
@@ -16,15 +15,22 @@ interface ChartEntry {
   color: string
 }
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payload: ChartEntry }[] }) {
-  if (!active || !payload?.length) return null
-  const { name, value } = payload[0].payload
-  return (
-    <div className="rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-md text-xs">
-      <p className="font-semibold text-gray-800">{name}</p>
-      <p className="text-gray-600">{formatCurrency(value)}</p>
-    </div>
-  )
+interface Props {
+  data: ChartEntry[]
+  fmt: (amount: number) => string
+}
+
+function makeTooltip(fmt: (n: number) => string) {
+  return function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payload: ChartEntry }[] }) {
+    if (!active || !payload?.length) return null
+    const { name, value } = payload[0].payload
+    return (
+      <div className="rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-md text-xs">
+        <p className="font-semibold text-gray-800">{name}</p>
+        <p className="text-gray-600">{fmt(value)}</p>
+      </div>
+    )
+  }
 }
 
 function CustomLegend({ payload }: { payload?: { value: string; color: string }[] }) {
@@ -41,7 +47,8 @@ function CustomLegend({ payload }: { payload?: { value: string; color: string }[
   )
 }
 
-export default function CategoryChart({ data }: { data: ChartEntry[] }) {
+export default function CategoryChart({ data, fmt }: Props) {
+  const CustomTooltip = makeTooltip(fmt)
   return (
     <ResponsiveContainer width="100%" height={240}>
       <PieChart>

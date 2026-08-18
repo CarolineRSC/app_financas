@@ -1,27 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
-export default function LoginPage() {
+export default function UpdatePasswordPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [password, setPassword]   = useState('')
+  const [confirm, setConfirm]     = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    setLoading(true)
 
+    if (password !== confirm) {
+      setError('As senhas não coincidem.')
+      return
+    }
+    if (password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres.')
+      return
+    }
+    if (!/\d/.test(password)) {
+      setError('A senha deve conter pelo menos um número.')
+      return
+    }
+
+    setLoading(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.updateUser({ password })
 
     if (error) {
-      setError('E-mail ou senha incorretos. Tente novamente.')
+      setError('Não foi possível atualizar a senha. O link pode ter expirado — solicite um novo.')
       setLoading(false)
       return
     }
@@ -40,39 +53,30 @@ export default function LoginPage() {
             </div>
             <span className="font-semibold text-gray-900 text-lg">Simple Budget</span>
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Entrar na sua conta</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Bem-vindo(a) de volta!
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Nova senha</h1>
+          <p className="text-sm text-gray-500 mt-1">Escolha uma senha segura para sua conta</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                E-mail
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Nova senha</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
-                placeholder="seu@email.com"
+                placeholder="Mínimo 8 caracteres e 1 número"
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-700">Senha</label>
-                <Link href="/reset-password" className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                  Esqueci a senha
-                </Link>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirmar senha</label>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
                 required
                 placeholder="••••••••"
                 className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
@@ -88,19 +92,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Entrando...' : 'Entrar'}
+              className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              {loading ? 'Salvando...' : 'Salvar nova senha'}
             </button>
           </form>
         </div>
-
-        <p className="text-center text-sm text-gray-500 mt-5">
-          Não tem conta?{' '}
-          <Link href="/register" className="font-semibold text-blue-600 hover:text-blue-700">
-            Criar conta grátis
-          </Link>
-        </p>
       </div>
     </div>
   )

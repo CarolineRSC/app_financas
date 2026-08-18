@@ -2,8 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Transaction, Category } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { usePreferences } from '@/lib/preferences-context'
 
 interface ParsedRow {
   date: string
@@ -39,7 +39,6 @@ function guessCategory(desc: string): Category {
 
 function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
   const results: Omit<ParsedRow, 'selected'>[] = []
-  // Normalize: collapse multiple spaces, split on newlines
   const lines = text
     .replace(/\r/g, '')
     .split('\n')
@@ -50,7 +49,7 @@ function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
   const txnRe = /^(\d{2}\/\d{2}\/\d{2})\s*(.*?)\s*(-?\d{1,3}(?:,\d{3})*\.\d{2})$/
 
   for (const line of lines) {
-    if (/deposits and other additions/i.test(line))      { section = 'income';  continue }
+    if (/deposits and other additions/i.test(line))          { section = 'income';  continue }
     if (/withdrawals|subtractions|payments made/i.test(line)) { section = 'expense'; continue }
     if (/^(date\s|total |page \d|bank of america|description|amount|caroline|continued|scam|pause|account #)/i.test(line)) continue
     if (/^\$[\d,]+/.test(line)) continue
@@ -64,7 +63,7 @@ function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
 
     const [mo, dy, yr] = rawDate.split('/')
     const date = `20${yr}-${mo}-${dy}`
-    const description = rawDesc.trim() || 'Transação'
+    const description = rawDesc.trim() || 'Transaction'
     const amount = Math.abs(numAmt)
     const type: 'income' | 'expense' = numAmt > 0 ? 'income' : 'expense'
 
@@ -75,7 +74,6 @@ function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
 }
 
 async function extractTextFromPdf(file: File): Promise<string> {
-  // Use legacy build for better Next.js compatibility
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
@@ -95,10 +93,8 @@ async function extractTextFromPdf(file: File): Promise<string> {
       }
     }
 
-    // Sort top→bottom, left→right
     pageItems.sort((a, b) => b.y - a.y || a.x - b.x)
 
-    // Group items that share the same Y (same line)
     const lines: string[][] = []
     let lastY = -Infinity
     for (const item of pageItems) {
@@ -118,6 +114,8 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const { tr, fmt, prefs } = usePreferences()
+  const en = prefs.language === 'en'
 
   function reset() {
     setRows([]); setStep('upload'); setError('')
@@ -135,7 +133,9 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
       const parsed = parseBofAText(text)
 
       if (parsed.length === 0) {
-        setError('Nenhuma transação encontrada. Certifique-se que é um extrato do Bank of America.')
+        setError(en
+          ? 'No transactions found. Make sure this is a Bank of America statement.'
+          : 'Nenhuma transação encontrada. Certifique-se que é um extrato do Bank of America.')
         setLoading(false)
         return
       }
@@ -144,7 +144,9 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
       setStep('preview')
     } catch (err) {
       console.error(err)
-      setError('Erro ao ler o PDF. Verifique se o arquivo não está protegido por senha.')
+      setError(en
+        ? 'Error reading PDF. Make sure the file is not password-protected.'
+        : 'Erro ao ler o PDF. Verifique se o arquivo não está protegido por senha.')
     }
     setLoading(false)
   }
@@ -164,7 +166,7 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Sessão expirada.'); setLoading(false); return }
+    if (!user) { setError(en ? 'Session expired.' : 'Sessão expirada.'); setLoading(false); return }
 
     const payload = selected.map(r => ({
       user_id: user.id,
@@ -177,11 +179,11 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
     }))
 
     const { data, error: err } = await supabase.from('transactions').insert(payload).select()
-    if (err) { setError(`Erro: ${err.message}`); setLoading(false); return }
+    if (err) { setError(`${en ? 'Error' : 'Erro'}: ${err.message}`); setLoading(false); return }
     onImported(data as Transaction[])
     handleClose()
     setLoading(false)
-  }, [selected, onImported])
+  }, [selected, onImported, en])
 
   if (!open) return null
 
@@ -192,7 +194,9 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
       <div className="relative z-10 w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-xl border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">Importar extrato PDF</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              {en ? 'Import PDF statement' : 'Importar extrato PDF'}
+            </h2>
             <p className="text-xs text-gray-400 mt-0.5">Bank of America</p>
           </div>
           <button onClick={handleClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
@@ -206,23 +210,40 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
           {step === 'upload' && (
             <div className="space-y-4">
               <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-4">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">Como baixar o extrato no Bank of America</p>
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                  {en ? 'How to download your Bank of America statement' : 'Como baixar o extrato no Bank of America'}
+                </p>
                 <ol className="text-xs text-blue-700 dark:text-blue-400 space-y-1 list-decimal list-inside">
-                  <li>Acesse bankofamerica.com → login</li>
-                  <li>Vá em "Statements" ou "eStatements"</li>
-                  <li>Escolha o mês e clique "View" → baixe o PDF</li>
-                  <li>Faça upload aqui abaixo</li>
+                  {en ? (
+                    <>
+                      <li>Go to bankofamerica.com → sign in</li>
+                      <li>Go to "Statements" or "eStatements"</li>
+                      <li>Choose the month and click "View" → download the PDF</li>
+                      <li>Upload it below</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Acesse bankofamerica.com → login</li>
+                      <li>Vá em "Statements" ou "eStatements"</li>
+                      <li>Escolha o mês e clique "View" → baixe o PDF</li>
+                      <li>Faça upload aqui abaixo</li>
+                    </>
+                  )}
                 </ol>
               </div>
 
               <div className="rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 p-8 text-center">
                 <div className="text-4xl mb-3">📄</div>
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Selecione o extrato em PDF</p>
-                <p className="text-xs text-gray-400 mb-4">Somente arquivos .pdf do Bank of America</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {en ? 'Select the PDF statement' : 'Selecione o extrato em PDF'}
+                </p>
+                <p className="text-xs text-gray-400 mb-4">
+                  {en ? 'Only Bank of America .pdf files' : 'Somente arquivos .pdf do Bank of America'}
+                </p>
                 <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} className="hidden" id="pdf-file" />
                 <label htmlFor="pdf-file"
                   className={`inline-block cursor-pointer rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-colors ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {loading ? '⏳ Processando PDF...' : '📂 Selecionar PDF'}
+                  {loading ? `⏳ ${en ? 'Processing PDF...' : 'Processando PDF...'}` : `📂 ${en ? 'Select PDF' : 'Selecionar PDF'}`}
                 </label>
               </div>
 
@@ -238,21 +259,23 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg bg-gray-50 dark:bg-gray-700 p-3 text-center">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Encontradas</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{en ? 'Found' : 'Encontradas'}</p>
                   <p className="text-lg font-bold text-gray-800 dark:text-white">{rows.length}</p>
                 </div>
                 <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-3 text-center">
-                  <p className="text-xs text-green-600 dark:text-green-400">Receitas selecionadas</p>
-                  <p className="text-sm font-bold text-green-700 dark:text-green-400">{formatCurrency(totalIncome)}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">{en ? 'Income selected' : 'Receitas selecionadas'}</p>
+                  <p className="text-sm font-bold text-green-700 dark:text-green-400">{fmt(totalIncome)}</p>
                 </div>
                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-center">
-                  <p className="text-xs text-red-500 dark:text-red-400">Despesas selecionadas</p>
-                  <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpense)}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400">{en ? 'Expenses selected' : 'Despesas selecionadas'}</p>
+                  <p className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(totalExpense)}</p>
                 </div>
               </div>
 
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Revise, ajuste categoria/tipo e desmarque o que não quer importar.
+                {en
+                  ? 'Review, adjust category/type, and uncheck what you don\'t want to import.'
+                  : 'Revise, ajuste categoria/tipo e desmarque o que não quer importar.'}
               </p>
 
               <div className="rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -262,11 +285,11 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
                       <th className="px-3 py-2 text-left">
                         <input type="checkbox" checked={rows.every(r => r.selected)} onChange={toggleAll} className="rounded" />
                       </th>
-                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Data</th>
-                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Descrição</th>
-                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Tipo</th>
-                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Categoria</th>
-                      <th className="px-3 py-2 text-right text-gray-500 dark:text-gray-400 font-semibold">Valor</th>
+                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">{tr.date}</th>
+                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">{tr.description}</th>
+                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">{tr.type}</th>
+                      <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">{tr.category}</th>
+                      <th className="px-3 py-2 text-right text-gray-500 dark:text-gray-400 font-semibold">{tr.amount}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
@@ -282,8 +305,8 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
                         <td className="px-3 py-2">
                           <select value={r.type} onChange={e => updateType(i, e.target.value as 'income' | 'expense')}
                             className="rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-1.5 py-0.5 text-xs">
-                            <option value="income">Receita</option>
-                            <option value="expense">Despesa</option>
+                            <option value="income">{tr.incomeLabel}</option>
+                            <option value="expense">{tr.expenseLabel}</option>
                           </select>
                         </td>
                         <td className="px-3 py-2">
@@ -293,7 +316,7 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
                           </select>
                         </td>
                         <td className={`px-3 py-2 text-right font-semibold ${r.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                          {r.type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}
+                          {r.type === 'income' ? '+' : '-'}{fmt(r.amount)}
                         </td>
                       </tr>
                     ))}
@@ -314,11 +337,13 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
           <div className="flex gap-2 px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
             <button onClick={reset}
               className="flex-1 rounded-lg border border-gray-200 dark:border-gray-600 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-              Voltar
+              {en ? 'Back' : 'Voltar'}
             </button>
             <button onClick={handleImport} disabled={loading || selected.length === 0}
               className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-60">
-              {loading ? 'Importando...' : `Importar ${selected.length} transações`}
+              {loading
+                ? tr.loading
+                : `${en ? 'Import' : 'Importar'} ${selected.length} ${tr.transactions.toLowerCase()}`}
             </button>
           </div>
         )}
