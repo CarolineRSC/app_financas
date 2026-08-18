@@ -53,19 +53,25 @@ function parseBofA(text: string): Omit<ParsedRow, 'selected'>[] {
   const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
 
   let section: 'income' | 'expense' | null = null
-  const dateRe = /^(\d{2}\/\d{2}\/\d{2})\s+(.+)$/
-  const amountRe = /(-?\$?[\d,]+\.\d{2})$/
+
+  // Matches: date at start, amount at end, description in between
+  // e.g. "06/24/26  45547 PRECISION DES:PAYROLL ...  3,482.08"
+  const fullLineRe = /^(\d{2}\/\d{2}\/\d{2})\s+(.+?)\s+(-?[\d,]+\.\d{2})$/
+  // date-only start (multi-line case)
+  const dateStartRe = /^(\d{2}\/\d{2}\/\d{2})\s+(.*)$/
+  const amountOnlyRe = /^(-?[\d,]+\.\d{2})$/
 
   let pendingDate = ''
   let pendingDesc = ''
 
   function flush() {
-    if (!pendingDate || !pendingDesc || !section) { pendingDate = ''; pendingDesc = ''; return }
-    const m = pendingDesc.match(amountRe)
-    if (!m) { pendingDate = ''; pendingDesc = ''; return }
-    const numAmt = parseFloat(m[1].replace(/[$,]/g, ''))
+    if (!pendingDate || !section) { pendingDate = ''; pendingDesc = ''; return }
+    // amount should be at end of accumulated description
+    const amEnd = pendingDesc.match(/(-?[\d,]+\.\d{2})$/)
+    if (!amEnd) { pendingDate = ''; pendingDesc = ''; return }
+    const numAmt = parseFloat(amEnd[1].replace(/,/g, ''))
     if (isNaN(numAmt) || numAmt === 0) { pendingDate = ''; pendingDesc = ''; return }
-    const desc = pendingDesc.slice(0, pendingDesc.lastIndexOf(m[1])).trim()
+    const desc = pendingDesc.slice(0, pendingDesc.lastIndexOf(amEnd[1])).trim()
     const [mo, dy, yr] = pendingDate.split('/')
     results.push({
       date: `20${yr}-${mo}-${dy}`,
@@ -82,17 +88,44 @@ function parseBofA(text: string): Omit<ParsedRow, 'selected'>[] {
     if (/deposits and other additions/i.test(line))                                        { flush(); section = 'income';  continue }
     if (/withdrawals and other subtractions|other subtractions|atm and debit/i.test(line)) { flush(); section = 'expense'; continue }
     if (/service fees/i.test(line))                                                        { flush(); section = null; continue }
-    if (/^(date\s|total |page \d|bank of america|description|amount|continued|account #|can you spot|be aware|share these|scan this)/i.test(line)) continue
+    if (/^(date\s*$|total |page \d|bank of america|description\s*$|amount\s*$|continued|account #|can you spot|be aware|share these|scan this|braille|large print)/i.test(line)) continue
     if (/^\$[\d,]+/.test(line)) continue
     if (!section) continue
 
-    const m = line.match(dateRe)
-    if (m) {
+    // Try full single-line match first
+    const full = line.match(fullLineRe)
+    if (full) {
       flush()
-      pendingDate = m[1]
-      pendingDesc = m[2]
-    } else if (pendingDate) {
+      const [, rawDate, rawDesc, rawAmt] = full
+      const numAmt = parseFloat(rawAmt.replace(/,/g, ''))
+      if (!isNaN(numAmt) && numAmt !== 0) {
+        const [mo, dy, yr] = rawDate.split('/')
+        results.push({
+          date: `20${yr}-${mo}-${dy}`,
+          description: rawDesc.trim() || 'Transaction',
+          amount: Math.abs(numAmt),
+          type: section,
+          category: guessCategory(rawDesc),
+          expense_type: 'variable',
+        })
+      }
+      continue
+    }
+
+    // Multi-line: starts with date
+    const dateM = line.match(dateStartRe)
+    if (dateM) {
+      flush()
+      pendingDate = dateM[1]
+      pendingDesc = dateM[2]
+      continue
+    }
+
+    // Continuation line (amount-only or extra description)
+    if (pendingDate) {
       pendingDesc += ' ' + line
+      // If this line IS the amount, flush immediately
+      if (amountOnlyRe.test(line)) flush()
     }
   }
   flush()
