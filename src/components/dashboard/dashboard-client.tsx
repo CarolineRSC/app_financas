@@ -12,8 +12,6 @@ const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho'
 
 const currentYear = new Date().getFullYear()
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i)
-const selectCls = 'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100'
-const cardCls   = 'rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5'
 
 interface Props {
   initialTransactions: Transaction[]
@@ -26,8 +24,9 @@ export default function DashboardClient({ initialTransactions, initialAccounts, 
   const [month, setMonth] = useState(curMonth)
   const [year,  setYear]  = useState(curYear)
   const { tr, fmt, prefs } = usePreferences()
+  const en = prefs.language === 'en'
 
-  const MONTHS = prefs.language === 'en' ? MONTHS_EN : MONTHS_PT
+  const MONTHS = en ? MONTHS_EN : MONTHS_PT
 
   const filtered = useMemo(
     () => filterTransactions(initialTransactions, {
@@ -43,11 +42,11 @@ export default function DashboardClient({ initialTransactions, initialAccounts, 
   const totalVariable = filtered.filter(t => t.type === 'expense' && t.expense_type === 'variable').reduce((s, t) => s + t.amount, 0)
   const balance       = totalIncome - totalExpense
 
-  const liquidCash  = initialAccounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + a.balance, 0)
-  const totalDebt   = initialAccounts.filter(a => a.type === 'credit_card').reduce((s, a) => s + a.balance, 0)
+  const liquidCash    = initialAccounts.filter(a => a.type !== 'credit_card').reduce((s, a) => s + a.balance, 0)
+  const totalDebt     = initialAccounts.filter(a => a.type === 'credit_card').reduce((s, a) => s + a.balance, 0)
   const totalInvested = initialInvestments.reduce((s, i) => s + i.invested_amount, 0)
   const totalInvValue = initialInvestments.reduce((s, i) => s + i.current_value, 0)
-  const netWorth = liquidCash + totalInvValue - totalDebt
+  const netWorth      = liquidCash + totalInvValue - totalDebt
 
   const avgMonthlySpend = useMemo(() => {
     const months: number[] = []
@@ -71,12 +70,16 @@ export default function DashboardClient({ initialTransactions, initialAccounts, 
       .sort((a, b) => b.value - a.value)
   }, [filtered])
 
+  const selectCls = 'rounded-[10px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-[13px] font-medium text-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-colors'
+
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="p-5 sm:p-6 max-w-5xl mx-auto animate-fade-in">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-7">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tr.dashboard}</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{tr.thisMonth}</p>
+          <h1 className="text-[22px] font-bold text-gray-900 dark:text-white tracking-tight">{tr.dashboard}</h1>
+          <p className="text-[13px] text-gray-400 dark:text-gray-500 mt-0.5 font-medium">{tr.thisMonth}</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={month} onChange={e => setMonth(Number(e.target.value))} className={selectCls}>
@@ -88,105 +91,136 @@ export default function DashboardClient({ initialTransactions, initialAccounts, 
         </div>
       </div>
 
-      {/* Net worth */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">{tr.netWorth}</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">💵 {tr.availableBalance}</p>
-            <p className="text-xl font-bold text-green-600 dark:text-green-400">{fmt(liquidCash)}</p>
-          </div>
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">📈 {tr.totalInvested}</p>
-            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{fmt(totalInvValue)}</p>
-            <p className={`text-xs mt-1 font-medium ${totalInvValue >= totalInvested ? 'text-green-500' : 'text-red-400'}`}>
-              {totalInvValue >= totalInvested ? '▲' : '▼'} {fmt(Math.abs(totalInvValue - totalInvested))}
-            </p>
-          </div>
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">💳 {tr.creditCardDebt}</p>
-            <p className="text-xl font-bold text-red-500 dark:text-red-400">{fmt(totalDebt)}</p>
-          </div>
-          <div className={`${cardCls} ${netWorth >= 0 ? 'border-blue-100 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20' : 'border-red-100 dark:border-red-800 bg-red-50 dark:bg-red-900/20'}`}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">🏦 {tr.netWorth}</p>
-            <p className={`text-xl font-bold ${netWorth >= 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-600'}`}>{fmt(netWorth)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Monthly */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-          {MONTHS[month - 1]} {year}
+      {/* Net worth banner */}
+      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 px-6 py-5 mb-5 shadow-lg shadow-blue-500/15">
+        <p className="text-[12px] font-semibold text-blue-200 uppercase tracking-wider mb-1">
+          {tr.netWorth}
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">↑ {tr.income}</p>
-            <p className="text-xl font-bold text-green-600">{fmt(totalIncome)}</p>
-            <p className="text-xs text-gray-400 mt-1">{filtered.filter(t => t.type === 'income').length} {tr.transactions.toLowerCase()}</p>
-          </div>
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">↓ {tr.expenses}</p>
-            <p className="text-xl font-bold text-red-500">{fmt(totalExpense)}</p>
-            <p className="text-xs text-gray-400 mt-1">{filtered.filter(t => t.type === 'expense').length} {tr.transactions.toLowerCase()}</p>
-          </div>
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">📌 {tr.fixed}</p>
-            <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{fmt(totalFixed)}</p>
-            {totalExpense > 0 && (
-              <div className="mt-2 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700">
-                <div className="h-1.5 rounded-full bg-purple-400" style={{ width: `${Math.round((totalFixed / totalExpense) * 100)}%` }} />
-              </div>
-            )}
-          </div>
-          <div className={cardCls}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">🔄 {tr.variable}</p>
-            <p className="text-xl font-bold text-orange-500 dark:text-orange-400">{fmt(totalVariable)}</p>
-            {totalExpense > 0 && (
-              <div className="mt-2 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700">
-                <div className="h-1.5 rounded-full bg-orange-400" style={{ width: `${Math.round((totalVariable / totalExpense) * 100)}%` }} />
-              </div>
-            )}
-          </div>
+        <p className="text-[32px] font-bold text-white tracking-tight tabular-nums leading-none mb-4">
+          {fmt(netWorth)}
+        </p>
+        <div className="flex flex-wrap gap-5">
+          <NetBadge label={en ? 'Cash' : 'Dinheiro'} value={fmt(liquidCash)} />
+          <NetBadge label={en ? 'Invested' : 'Investido'} value={fmt(totalInvValue)} />
+          <NetBadge label={en ? 'Debt' : 'Dívidas'} value={`−${fmt(totalDebt)}`} danger />
         </div>
       </div>
 
-      {/* Balance + avg */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-        <div className={`${cardCls} flex items-center gap-4`}>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-xl flex-shrink-0 text-2xl ${balance >= 0 ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-red-50 dark:bg-red-900/30'}`}>
-            {balance >= 0 ? '✅' : '⚠️'}
+      {/* Monthly section label */}
+      <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3 px-0.5">
+        {MONTHS[month - 1]} {year}
+      </p>
+
+      {/* Monthly cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <StatCard
+          label={`↑ ${tr.income}`}
+          value={fmt(totalIncome)}
+          sub={`${filtered.filter(t => t.type === 'income').length} ${tr.transactions.toLowerCase()}`}
+          valueClass="text-green-600 dark:text-green-400"
+        />
+        <StatCard
+          label={`↓ ${tr.expenses}`}
+          value={fmt(totalExpense)}
+          sub={`${filtered.filter(t => t.type === 'expense').length} ${tr.transactions.toLowerCase()}`}
+          valueClass="text-red-500 dark:text-red-400"
+        />
+        <StatCard
+          label={`📌 ${tr.fixed}`}
+          value={fmt(totalFixed)}
+          bar={totalExpense > 0 ? totalFixed / totalExpense : 0}
+          barColor="#a855f7"
+          valueClass="text-purple-600 dark:text-purple-400"
+        />
+        <StatCard
+          label={`🔄 ${tr.variable}`}
+          value={fmt(totalVariable)}
+          bar={totalExpense > 0 ? totalVariable / totalExpense : 0}
+          barColor="#f97316"
+          valueClass="text-orange-500 dark:text-orange-400"
+        />
+      </div>
+
+      {/* Balance + avg row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 shadow-sm p-5 flex items-center gap-4">
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0 ${balance >= 0 ? 'bg-blue-50 dark:bg-blue-950/40' : 'bg-red-50 dark:bg-red-950/40'}`}>
+            {balance >= 0 ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+              </svg>
+            )}
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{tr.balance}</p>
-            <p className={`text-xl font-bold ${balance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}>{fmt(balance)}</p>
-            <p className="text-xs text-gray-400">{tr.income.toLowerCase()} − {tr.expenses.toLowerCase()}</p>
+            <p className="text-[12px] font-medium text-gray-400 dark:text-gray-500">{tr.balance}</p>
+            <p className={`text-[22px] font-bold tabular-nums tracking-tight ${balance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}>
+              {fmt(balance)}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{tr.income.toLowerCase()} − {tr.expenses.toLowerCase()}</p>
           </div>
         </div>
-        <div className={`${cardCls} flex items-center gap-4`}>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl flex-shrink-0 text-2xl bg-amber-50 dark:bg-amber-900/30">📅</div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 shadow-sm p-5 flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl flex-shrink-0 bg-amber-50 dark:bg-amber-950/40">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
           <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {prefs.language === 'en' ? 'Avg spend / month' : 'Gasto médio / mês'}
+            <p className="text-[12px] font-medium text-gray-400 dark:text-gray-500">
+              {en ? 'Avg spend / month' : 'Gasto médio / mês'}
             </p>
-            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{fmt(avgMonthlySpend)}</p>
-            <p className="text-xs text-gray-400">{prefs.language === 'en' ? 'last 3 months avg' : 'média dos últimos 3 meses'}</p>
+            <p className="text-[22px] font-bold tabular-nums tracking-tight text-amber-600 dark:text-amber-400">{fmt(avgMonthlySpend)}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{en ? 'last 3 months' : 'últimos 3 meses'}</p>
           </div>
         </div>
       </div>
 
       {/* Category chart */}
-      <div className={cardCls}>
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{tr.byCategory}</h2>
+      <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 shadow-sm p-5">
+        <h2 className="text-[13px] font-semibold text-gray-600 dark:text-gray-400 mb-4 uppercase tracking-wider">{tr.byCategory}</h2>
         {categoryData.length > 0 ? (
           <CategoryChart data={categoryData} fmt={fmt} />
         ) : (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-            <span className="text-3xl mb-2">📭</span>
-            <p className="text-sm">{prefs.language === 'en' ? 'No expenses this period' : 'Sem despesas neste período'}</p>
+          <div className="flex flex-col items-center justify-center h-48 text-gray-300 dark:text-gray-600">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-3">
+              <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+            <p className="text-[13px] font-medium">{en ? 'No expenses this period' : 'Sem despesas neste período'}</p>
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub, bar, barColor, valueClass }: {
+  label: string; value: string; valueClass: string
+  sub?: string; bar?: number; barColor?: string
+}) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50 shadow-sm p-4">
+      <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mb-2">{label}</p>
+      <p className={`text-[18px] font-bold tabular-nums tracking-tight ${valueClass}`}>{value}</p>
+      {sub && <p className="text-[11px] text-gray-400 mt-1">{sub}</p>}
+      {bar !== undefined && bar > 0 && (
+        <div className="mt-2.5 h-1 rounded-full bg-gray-100 dark:bg-gray-700">
+          <div className="h-1 rounded-full transition-all duration-700" style={{ width: `${Math.round(bar * 100)}%`, backgroundColor: barColor }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NetBadge({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div>
+      <p className="text-[11px] text-blue-300 font-medium mb-0.5">{label}</p>
+      <p className={`text-[15px] font-semibold tabular-nums ${danger ? 'text-red-300' : 'text-white'}`}>{value}</p>
     </div>
   )
 }

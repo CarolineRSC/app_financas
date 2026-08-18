@@ -33,7 +33,8 @@ export async function proxy(request: NextRequest) {
   const isProtected = pathname.startsWith('/dashboard') ||
                       pathname.startsWith('/transactions') ||
                       pathname.startsWith('/accounts') ||
-                      pathname.startsWith('/investments')
+                      pathname.startsWith('/investments') ||
+                      pathname.startsWith('/net-worth')
   const isAuthPage = pathname === '/login' || pathname === '/register' ||
                      pathname === '/reset-password' || pathname === '/update-password'
 

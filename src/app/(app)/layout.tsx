@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <PreferencesProvider>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex h-screen" style={{ background: 'var(--bg-primary)' }}>
         <AppSidebar userEmail={user.email ?? ''} />
         <main className="flex-1 overflow-y-auto pt-14 lg:pt-0">
           {children}
