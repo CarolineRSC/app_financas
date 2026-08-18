@@ -51,29 +51,51 @@ function detectBank(text: string): Bank {
 function parseBofA(text: string): Omit<ParsedRow, 'selected'>[] {
   const results: Omit<ParsedRow, 'selected'>[] = []
   const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
+
   let section: 'income' | 'expense' | null = null
-  const txnRe = /^(\d{2}\/\d{2}\/\d{2})\s*(.*?)\s*(-?\d{1,3}(?:,\d{3})*\.\d{2})$/
+  const dateRe = /^(\d{2}\/\d{2}\/\d{2})\s+(.+)$/
+  const amountRe = /(-?\$?[\d,]+\.\d{2})$/
+
+  let pendingDate = ''
+  let pendingDesc = ''
+
+  function flush() {
+    if (!pendingDate || !pendingDesc || !section) { pendingDate = ''; pendingDesc = ''; return }
+    const m = pendingDesc.match(amountRe)
+    if (!m) { pendingDate = ''; pendingDesc = ''; return }
+    const numAmt = parseFloat(m[1].replace(/[$,]/g, ''))
+    if (isNaN(numAmt) || numAmt === 0) { pendingDate = ''; pendingDesc = ''; return }
+    const desc = pendingDesc.slice(0, pendingDesc.lastIndexOf(m[1])).trim()
+    const [mo, dy, yr] = pendingDate.split('/')
+    results.push({
+      date: `20${yr}-${mo}-${dy}`,
+      description: desc || 'Transaction',
+      amount: Math.abs(numAmt),
+      type: section!,
+      category: guessCategory(desc),
+      expense_type: 'variable',
+    })
+    pendingDate = ''; pendingDesc = ''
+  }
 
   for (const line of lines) {
-    if (/deposits and other additions/i.test(line))           { section = 'income';  continue }
-    if (/withdrawals|subtractions|payments made/i.test(line)) { section = 'expense'; continue }
-    if (/^(date\s|total |page \d|bank of america|description|amount|continued|account #)/i.test(line)) continue
+    if (/deposits and other additions/i.test(line))                                        { flush(); section = 'income';  continue }
+    if (/withdrawals and other subtractions|other subtractions|atm and debit/i.test(line)) { flush(); section = 'expense'; continue }
+    if (/service fees/i.test(line))                                                        { flush(); section = null; continue }
+    if (/^(date\s|total |page \d|bank of america|description|amount|continued|account #|can you spot|be aware|share these|scan this)/i.test(line)) continue
     if (/^\$[\d,]+/.test(line)) continue
+    if (!section) continue
 
-    const m = line.match(txnRe)
-    if (!m || !section) continue
-
-    const [, rawDate, rawDesc, rawAmt] = m
-    const numAmt = parseFloat(rawAmt.replace(/,/g, ''))
-    if (isNaN(numAmt)) continue
-
-    const [mo, dy, yr] = rawDate.split('/')
-    const date = `20${yr}-${mo}-${dy}`
-    const description = rawDesc.trim() || 'Transaction'
-    const amount = Math.abs(numAmt)
-    const type: 'income' | 'expense' = numAmt > 0 ? 'income' : 'expense'
-    results.push({ date, description, amount, type, category: guessCategory(description), expense_type: 'variable' })
+    const m = line.match(dateRe)
+    if (m) {
+      flush()
+      pendingDate = m[1]
+      pendingDesc = m[2]
+    } else if (pendingDate) {
+      pendingDesc += ' ' + line
+    }
   }
+  flush()
   return results
 }
 
