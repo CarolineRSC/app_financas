@@ -27,31 +27,37 @@ const ALL_CATEGORIES: Category[] = [
 
 function guessCategory(desc: string): Category {
   const d = desc.toLowerCase()
-  if (/restaurant|food|pizza|mcdonald|burger|taco|sushi|cafe|coffee|starbucks|chick|wendy|subway|grubhub|doordash|uber.eat/i.test(d)) return 'Alimentação'
-  if (/uber|lyft|gas|fuel|parking|toll|transit|shell|chevron|exxon/i.test(d)) return 'Transporte'
-  if (/rent|mortgage|hoa|electric|water|internet|utility|comcast|xfinity/i.test(d)) return 'Moradia'
-  if (/netflix|spotify|hulu|disney|prime|openai|chatgpt|apple|cinema|movie|theater|steam/i.test(d)) return 'Lazer'
-  if (/pharmacy|cvs|walgreen|doctor|hospital|clinic|dental|health|medical/i.test(d)) return 'Saúde'
-  if (/tuition|school|college|university|course|udemy|coursera/i.test(d)) return 'Educação'
-  if (/salary|payroll|direct deposit|paycheck/i.test(d)) return 'Salário'
+  if (/restaurant|food|pizza|mcdonald|burger|taco|sushi|cafe|coffee|starbucks|chick|wendy|subway|grubhub|doordash|uber.eat|cheesecake|panera|chipotle|dunkin/i.test(d)) return 'Alimentação'
+  if (/uber|lyft|gas|fuel|parking|toll|transit|shell|chevron|exxon|bp |sunoco|wawa|7-eleven/i.test(d)) return 'Transporte'
+  if (/rent|mortgage|hoa|electric|water|internet|utility|comcast|xfinity|at&t|verizon|pge|con ed/i.test(d)) return 'Moradia'
+  if (/netflix|spotify|hulu|disney|prime|openai|chatgpt|apple|cinema|movie|theater|steam|playstation|xbox/i.test(d)) return 'Lazer'
+  if (/pharmacy|cvs|walgreen|doctor|hospital|clinic|dental|health|medical|rite aid/i.test(d)) return 'Saúde'
+  if (/tuition|school|college|university|course|udemy|coursera|amazon.*book/i.test(d)) return 'Educação'
+  if (/salary|payroll|direct deposit|paycheck|ach credit|zelle|venmo.*credit/i.test(d)) return 'Salário'
   return 'Outros'
 }
 
-function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
-  const results: Omit<ParsedRow, 'selected'>[] = []
-  const lines = text
-    .replace(/\r/g, '')
-    .split('\n')
-    .map(l => l.trim())
-    .filter(Boolean)
+type Bank = 'bofa' | 'chase' | 'amex' | 'discover' | 'unknown'
 
+function detectBank(text: string): Bank {
+  const t = text.slice(0, 3000).toLowerCase()
+  if (/bank of america/i.test(t)) return 'bofa'
+  if (/chase bank|jpmorgan chase|chase\.com/i.test(t)) return 'chase'
+  if (/american express|amex\.com/i.test(t)) return 'amex'
+  if (/discover bank|discover\.com|discover card/i.test(t)) return 'discover'
+  return 'unknown'
+}
+
+function parseBofA(text: string): Omit<ParsedRow, 'selected'>[] {
+  const results: Omit<ParsedRow, 'selected'>[] = []
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
   let section: 'income' | 'expense' | null = null
   const txnRe = /^(\d{2}\/\d{2}\/\d{2})\s*(.*?)\s*(-?\d{1,3}(?:,\d{3})*\.\d{2})$/
 
   for (const line of lines) {
-    if (/deposits and other additions/i.test(line))          { section = 'income';  continue }
+    if (/deposits and other additions/i.test(line))           { section = 'income';  continue }
     if (/withdrawals|subtractions|payments made/i.test(line)) { section = 'expense'; continue }
-    if (/^(date\s|total |page \d|bank of america|description|amount|caroline|continued|scam|pause|account #)/i.test(line)) continue
+    if (/^(date\s|total |page \d|bank of america|description|amount|continued|account #)/i.test(line)) continue
     if (/^\$[\d,]+/.test(line)) continue
 
     const m = line.match(txnRe)
@@ -66,11 +72,135 @@ function parseBofAText(text: string): Omit<ParsedRow, 'selected'>[] {
     const description = rawDesc.trim() || 'Transaction'
     const amount = Math.abs(numAmt)
     const type: 'income' | 'expense' = numAmt > 0 ? 'income' : 'expense'
+    results.push({ date, description, amount, type, category: guessCategory(description), expense_type: 'variable' })
+  }
+  return results
+}
+
+function parseChase(text: string): Omit<ParsedRow, 'selected'>[] {
+  const results: Omit<ParsedRow, 'selected'>[] = []
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
+
+  // Chase format: MM/DD/YYYY  Description  Amount (negative = expense for checking; negative = charge for credit)
+  // Also handles: MM/DD  Description  Amount
+  const txnRe = /^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s{2,}(.+?)\s{2,}(-?\$?[\d,]+\.\d{2})$/
+  const txnRe2 = /^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})$/
+
+  let isCredit = /credit card|sapphire|freedom|slate|ink|reserve/i.test(text.slice(0, 2000))
+
+  for (const line of lines) {
+    if (/^(date|description|amount|transaction|page \d|chase|account|total|balance|opening|closing)/i.test(line)) continue
+    if (/^[\d,]+\.\d{2}$/.test(line)) continue
+
+    const m = line.match(txnRe) ?? line.match(txnRe2)
+    if (!m) continue
+
+    const [, rawDate, rawDesc, rawAmt] = m
+    const numAmt = parseFloat(rawAmt.replace(/[$,]/g, ''))
+    if (isNaN(numAmt) || numAmt === 0) continue
+
+    // Normalize date
+    const parts = rawDate.split('/')
+    let date: string
+    if (parts.length === 3) {
+      const yr = parts[2].length === 2 ? `20${parts[2]}` : parts[2]
+      date = `${yr}-${parts[0]}-${parts[1]}`
+    } else {
+      const yr = new Date().getFullYear()
+      date = `${yr}-${parts[0]}-${parts[1]}`
+    }
+
+    const description = rawDesc.trim()
+    const amount = Math.abs(numAmt)
+
+    // For credit cards: negative = charge (expense), positive = payment/credit (income)
+    // For checking: negative = withdrawal (expense), positive = deposit (income)
+    let type: 'income' | 'expense'
+    if (isCredit) {
+      type = numAmt < 0 ? 'expense' : 'income'
+    } else {
+      type = numAmt > 0 ? 'income' : 'expense'
+    }
 
     results.push({ date, description, amount, type, category: guessCategory(description), expense_type: 'variable' })
   }
-
   return results
+}
+
+function parseAmex(text: string): Omit<ParsedRow, 'selected'>[] {
+  const results: Omit<ParsedRow, 'selected'>[] = []
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
+
+  // Amex format: MM/DD/YY  Description  $Amount  (charges are positive, credits are negative or labeled)
+  const txnRe = /^(\d{2}\/\d{2}\/\d{2})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})$/
+
+  for (const line of lines) {
+    if (/^(date|description|amount|reference|american express|account|total|page \d|closing|opening|payment|thank you)/i.test(line)) continue
+    if (/^\*/.test(line)) continue
+
+    const m = line.match(txnRe)
+    if (!m) continue
+
+    const [, rawDate, rawDesc, rawAmt] = m
+    const numAmt = parseFloat(rawAmt.replace(/[$,]/g, ''))
+    if (isNaN(numAmt) || numAmt === 0) continue
+
+    const [mo, dy, yr] = rawDate.split('/')
+    const date = `20${yr}-${mo}-${dy}`
+    const description = rawDesc.trim()
+    const amount = Math.abs(numAmt)
+
+    // Amex: positive = charge (expense), negative = credit/payment (income)
+    const type: 'income' | 'expense' = numAmt > 0 ? 'expense' : 'income'
+    results.push({ date, description, amount, type, category: guessCategory(description), expense_type: 'variable' })
+  }
+  return results
+}
+
+function parseDiscover(text: string): Omit<ParsedRow, 'selected'>[] {
+  const results: Omit<ParsedRow, 'selected'>[] = []
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean)
+
+  // Discover format: MM/DD/YYYY  Description  $Amount
+  const txnRe = /^(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})$/
+  const txnRe2 = /^(\d{2}\/\d{2}\/\d{2})\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})$/
+
+  for (const line of lines) {
+    if (/^(trans\.|post\s|date|description|amount|discover|account|total|page \d|balance|payment)/i.test(line)) continue
+
+    const m = line.match(txnRe) ?? line.match(txnRe2)
+    if (!m) continue
+
+    const [, rawDate, rawDesc, rawAmt] = m
+    const numAmt = parseFloat(rawAmt.replace(/[$,]/g, ''))
+    if (isNaN(numAmt) || numAmt === 0) continue
+
+    const parts = rawDate.split('/')
+    let date: string
+    if (parts[2].length === 4) {
+      date = `${parts[2]}-${parts[0]}-${parts[1]}`
+    } else {
+      date = `20${parts[2]}-${parts[0]}-${parts[1]}`
+    }
+
+    const description = rawDesc.trim()
+    const amount = Math.abs(numAmt)
+
+    // Discover credit: positive = charge (expense), negative = credit (income)
+    const type: 'income' | 'expense' = numAmt > 0 ? 'expense' : 'income'
+    results.push({ date, description, amount, type, category: guessCategory(description), expense_type: 'variable' })
+  }
+  return results
+}
+
+function parseByBank(bank: Bank, text: string): Omit<ParsedRow, 'selected'>[] {
+  switch (bank) {
+    case 'bofa':     return parseBofA(text)
+    case 'chase':    return parseChase(text)
+    case 'amex':     return parseAmex(text)
+    case 'discover': return parseDiscover(text)
+    default:         return []
+  }
 }
 
 async function extractTextFromPdf(file: File): Promise<string> {
@@ -102,23 +232,32 @@ async function extractTextFromPdf(file: File): Promise<string> {
       lines[lines.length - 1].push(item.str)
     }
 
-    fullText += lines.map(l => l.join(' ')).join('\n') + '\n'
+    fullText += lines.map(l => l.join('  ')).join('\n') + '\n'
   }
 
   return fullText
 }
 
+const BANK_LABELS: Record<Bank, string> = {
+  bofa:    'Bank of America',
+  chase:   'Chase',
+  amex:    'American Express',
+  discover:'Discover',
+  unknown: 'Unknown',
+}
+
 export default function PdfImportModal({ open, onClose, onImported }: Props) {
-  const [rows,    setRows]    = useState<ParsedRow[]>([])
-  const [step,    setStep]    = useState<'upload' | 'preview'>('upload')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [rows,       setRows]       = useState<ParsedRow[]>([])
+  const [step,       setStep]       = useState<'upload' | 'preview'>('upload')
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState('')
+  const [detectedBank, setDetectedBank] = useState<Bank>('unknown')
   const inputRef = useRef<HTMLInputElement>(null)
   const { tr, fmt, prefs } = usePreferences()
   const en = prefs.language === 'en'
 
   function reset() {
-    setRows([]); setStep('upload'); setError('')
+    setRows([]); setStep('upload'); setError(''); setDetectedBank('unknown')
     if (inputRef.current) inputRef.current.value = ''
   }
   function handleClose() { reset(); onClose() }
@@ -130,12 +269,23 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
 
     try {
       const text = await extractTextFromPdf(file)
-      const parsed = parseBofAText(text)
+      const bank = detectBank(text)
+      setDetectedBank(bank)
+
+      if (bank === 'unknown') {
+        setError(en
+          ? 'Bank not recognized. Supported: Bank of America, Chase, American Express, Discover.'
+          : 'Banco não reconhecido. Suportados: Bank of America, Chase, American Express, Discover.')
+        setLoading(false)
+        return
+      }
+
+      const parsed = parseByBank(bank, text)
 
       if (parsed.length === 0) {
         setError(en
-          ? 'No transactions found. Make sure this is a Bank of America statement.'
-          : 'Nenhuma transação encontrada. Certifique-se que é um extrato do Bank of America.')
+          ? `No transactions found in this ${BANK_LABELS[bank]} statement. Make sure it's not password-protected.`
+          : `Nenhuma transação encontrada no extrato do ${BANK_LABELS[bank]}. Verifique se o arquivo não está protegido por senha.`)
         setLoading(false)
         return
       }
@@ -154,9 +304,9 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
   function toggleRow(i: number)  { setRows(prev => prev.map((r, idx) => idx === i ? { ...r, selected: !r.selected } : r)) }
   function toggleAll()           { const all = rows.every(r => r.selected); setRows(prev => prev.map(r => ({ ...r, selected: !all }))) }
   function updateCategory(i: number, category: Category) { setRows(prev => prev.map((r, idx) => idx === i ? { ...r, category } : r)) }
-  function updateType(i: number, type: 'income' | 'expense')  { setRows(prev => prev.map((r, idx) => idx === i ? { ...r, type } : r)) }
+  function updateType(i: number, type: 'income' | 'expense') { setRows(prev => prev.map((r, idx) => idx === i ? { ...r, type } : r)) }
 
-  const selected = rows.filter(r => r.selected)
+  const selected     = rows.filter(r => r.selected)
   const totalIncome  = selected.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0)
   const totalExpense = selected.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0)
 
@@ -197,7 +347,12 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               {en ? 'Import PDF statement' : 'Importar extrato PDF'}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">Bank of America</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {step === 'preview' && detectedBank !== 'unknown'
+                ? `${BANK_LABELS[detectedBank]} · ${rows.length} ${en ? 'transactions found' : 'transações encontradas'}`
+                : 'Bank of America · Chase · American Express · Discover'
+              }
+            </p>
           </div>
           <button onClick={handleClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -209,41 +364,39 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
         <div className="flex-1 overflow-y-auto p-5">
           {step === 'upload' && (
             <div className="space-y-4">
+              {/* Supported banks */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['bofa', 'chase', 'amex', 'discover'] as Bank[]).map(b => (
+                  <div key={b} className="rounded-lg border border-gray-100 dark:border-gray-700 p-3 text-center">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">{BANK_LABELS[b]}</p>
+                    <p className="text-[10px] text-green-500 mt-0.5">✓ {en ? 'Supported' : 'Suportado'}</p>
+                  </div>
+                ))}
+              </div>
+
               <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-4">
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                  {en ? 'How to download your Bank of America statement' : 'Como baixar o extrato no Bank of America'}
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
+                  {en ? 'How to download your statement' : 'Como baixar seu extrato'}
                 </p>
-                <ol className="text-xs text-blue-700 dark:text-blue-400 space-y-1 list-decimal list-inside">
-                  {en ? (
-                    <>
-                      <li>Go to bankofamerica.com → sign in</li>
-                      <li>Go to "Statements" or "eStatements"</li>
-                      <li>Choose the month and click "View" → download the PDF</li>
-                      <li>Upload it below</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>Acesse bankofamerica.com → login</li>
-                      <li>Vá em "Statements" ou "eStatements"</li>
-                      <li>Escolha o mês e clique "View" → baixe o PDF</li>
-                      <li>Faça upload aqui abaixo</li>
-                    </>
-                  )}
-                </ol>
+                <p className="text-xs text-blue-700 dark:text-blue-400">
+                  {en
+                    ? 'Log in to your bank → go to Statements or eStatements → select the month → download as PDF → upload below.'
+                    : 'Acesse seu banco online → vá em Statements ou eStatements → selecione o mês → baixe o PDF → faça upload abaixo.'}
+                </p>
               </div>
 
               <div className="rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-600 p-8 text-center">
                 <div className="text-4xl mb-3">📄</div>
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {en ? 'Select the PDF statement' : 'Selecione o extrato em PDF'}
+                  {en ? 'Select your bank statement PDF' : 'Selecione o extrato em PDF'}
                 </p>
                 <p className="text-xs text-gray-400 mb-4">
-                  {en ? 'Only Bank of America .pdf files' : 'Somente arquivos .pdf do Bank of America'}
+                  {en ? 'Bank is detected automatically' : 'O banco é detectado automaticamente'}
                 </p>
                 <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} className="hidden" id="pdf-file" />
                 <label htmlFor="pdf-file"
                   className={`inline-block cursor-pointer rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-colors ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {loading ? `⏳ ${en ? 'Processing PDF...' : 'Processando PDF...'}` : `📂 ${en ? 'Select PDF' : 'Selecionar PDF'}`}
+                  {loading ? `⏳ ${en ? 'Processing...' : 'Processando...'}` : `📂 ${en ? 'Select PDF' : 'Selecionar PDF'}`}
                 </label>
               </div>
 
@@ -263,18 +416,18 @@ export default function PdfImportModal({ open, onClose, onImported }: Props) {
                   <p className="text-lg font-bold text-gray-800 dark:text-white">{rows.length}</p>
                 </div>
                 <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-3 text-center">
-                  <p className="text-xs text-green-600 dark:text-green-400">{en ? 'Income selected' : 'Receitas selecionadas'}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">{en ? 'Income' : 'Receitas'}</p>
                   <p className="text-sm font-bold text-green-700 dark:text-green-400">{fmt(totalIncome)}</p>
                 </div>
                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-center">
-                  <p className="text-xs text-red-500 dark:text-red-400">{en ? 'Expenses selected' : 'Despesas selecionadas'}</p>
+                  <p className="text-xs text-red-500 dark:text-red-400">{en ? 'Expenses' : 'Despesas'}</p>
                   <p className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(totalExpense)}</p>
                 </div>
               </div>
 
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {en
-                  ? 'Review, adjust category/type, and uncheck what you don\'t want to import.'
+                  ? "Review, adjust category/type, and uncheck what you don't want to import."
                   : 'Revise, ajuste categoria/tipo e desmarque o que não quer importar.'}
               </p>
 
