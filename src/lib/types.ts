@@ -24,7 +24,7 @@ export interface Transaction {
   created_at: string
 }
 
-export type AccountType = 'checking' | 'savings' | 'high_yield' | 'credit_card' | 'other'
+export type AccountType = 'checking' | 'savings' | 'credit_card' | 'cash' | 'other'
 
 export interface Account {
   id: string
@@ -38,7 +38,17 @@ export interface Account {
   created_at: string
 }
 
-export type InvestmentType = 'savings' | 'high_yield' | 'stocks' | 'fixed_income' | 'crypto' | 'other'
+export type InvestmentType =
+  | '401k'
+  | 'ira'
+  | 'roth_ira'
+  | 'stocks_etf'
+  | 'index_fund'
+  | 'high_yield'
+  | 'bonds'
+  | 'crypto'
+  | 'real_estate'
+  | 'other'
 
 export interface Investment {
   id: string
@@ -49,6 +59,15 @@ export interface Investment {
   current_value: number
   date: string
   notes: string | null
+  created_at: string
+}
+
+export interface InvestmentSnapshot {
+  id: string
+  user_id: string
+  investment_id: string
+  value: number
+  recorded_at: string
   created_at: string
 }
 

@@ -15,11 +15,11 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
   const { tr, fmt, prefs } = usePreferences()
 
   const TYPE_META: Record<AccountType, { label: string; icon: string; color: string; isDebt: boolean }> = {
-    checking:    { label: tr.checking,    icon: '🏦', color: '#3b82f6', isDebt: false },
-    savings:     { label: tr.savings,     icon: '💵', color: '#22c55e', isDebt: false },
-    high_yield:  { label: prefs.language === 'en' ? 'High Yield' : 'Conta Rendimento', icon: '💰', color: '#8b5cf6', isDebt: false },
-    credit_card: { label: tr.creditCard,  icon: '💳', color: '#ef4444', isDebt: true  },
-    other:       { label: tr.others,      icon: '📁', color: '#6b7280', isDebt: false },
+    checking:    { label: tr.checking,              icon: '🏦', color: '#3b82f6', isDebt: false },
+    savings:     { label: tr.savings,               icon: '💵', color: '#22c55e', isDebt: false },
+    cash:        { label: prefs.language === 'en' ? 'Cash' : 'Dinheiro', icon: '💵', color: '#10b981', isDebt: false },
+    credit_card: { label: tr.creditCard,            icon: '💳', color: '#ef4444', isDebt: true  },
+    other:       { label: tr.others,                icon: '📁', color: '#6b7280', isDebt: false },
   }
 
   const liquid = accounts.filter(a => !TYPE_META[a.type].isDebt).reduce((s, a) => s + a.balance, 0)
@@ -32,8 +32,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
   async function handleDelete(id: string) {
     if (!confirm(prefs.language === 'en' ? 'Delete this account?' : 'Deseja excluir esta conta?')) return
     setDeletingId(id)
-    const supabase = createClient()
-    const { error } = await supabase.from('accounts').delete().eq('id', id)
+    const { error } = await createClient().from('accounts').delete().eq('id', id)
     if (!error) setAccounts(prev => prev.filter(a => a.id !== id))
     setDeletingId(null)
   }

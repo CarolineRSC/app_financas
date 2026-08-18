@@ -22,11 +22,11 @@ export default function AccountModal({ open, onClose, onSaved, account }: Props)
   const en = prefs.language === 'en'
 
   const TYPES: { value: AccountType; label: string; icon: string; desc: string; isDebt: boolean }[] = [
-    { value: 'checking',    label: tr.checking,   icon: '🏦', desc: en ? 'e.g. Bank of America Checking' : 'Ex: Conta corrente', isDebt: false },
-    { value: 'savings',     label: tr.savings,    icon: '💵', desc: en ? 'e.g. Savings account'          : 'Ex: Poupança',       isDebt: false },
-    { value: 'high_yield',  label: en ? 'High Yield' : 'Conta Rendimento', icon: '💰', desc: en ? 'e.g. Marcus, Ally, SoFi' : 'Ex: Nubank, Inter', isDebt: false },
-    { value: 'credit_card', label: tr.creditCard, icon: '💳', desc: en ? 'e.g. Amex, Discover, Chase'    : 'Ex: Cartão crédito', isDebt: true  },
-    { value: 'other',       label: tr.others,     icon: '📁', desc: en ? 'Other account type'             : 'Outro tipo de conta', isDebt: false },
+    { value: 'checking',    label: tr.checking,   icon: '🏦', desc: en ? 'e.g. Bank of America, Chase' : 'Ex: Conta corrente', isDebt: false },
+    { value: 'savings',     label: tr.savings,    icon: '💵', desc: en ? 'e.g. Regular savings'        : 'Ex: Poupança',       isDebt: false },
+    { value: 'cash',        label: en ? 'Cash' : 'Dinheiro', icon: '💵', desc: en ? 'Physical cash on hand' : 'Dinheiro físico', isDebt: false },
+    { value: 'credit_card', label: tr.creditCard, icon: '💳', desc: en ? 'e.g. Amex, Discover, Chase'  : 'Ex: Cartão crédito', isDebt: true  },
+    { value: 'other',       label: tr.others,     icon: '📁', desc: en ? 'Other account type'           : 'Outro tipo de conta', isDebt: false },
   ]
 
   const [name,        setName]        = useState('')
@@ -78,11 +78,7 @@ export default function AccountModal({ open, onClose, onSaved, account }: Props)
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError(en ? 'Session expired.' : 'Sessão expirada.')
-      setLoading(false)
-      return
-    }
+    if (!user) { setError(en ? 'Session expired.' : 'Sessão expirada.'); setLoading(false); return }
 
     const payload = {
       name: name.trim(),
@@ -95,11 +91,11 @@ export default function AccountModal({ open, onClose, onSaved, account }: Props)
 
     if (isEdit && account) {
       const { data, error: err } = await supabase.from('accounts').update(payload).eq('id', account.id).select().single()
-      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save.' : 'Erro ao salvar.'); setLoading(false); return }
       onSaved(data as Account, true)
     } else {
       const { data, error: err } = await supabase.from('accounts').insert({ ...payload, user_id: user.id }).select().single()
-      if (err) { setError(en ? 'Failed to save. Please try again.' : 'Erro ao salvar. Tente novamente.'); setLoading(false); return }
+      if (err) { setError(en ? 'Failed to save.' : 'Erro ao salvar.'); setLoading(false); return }
       onSaved(data as Account, false)
     }
     setLoading(false)
@@ -149,8 +145,8 @@ export default function AccountModal({ open, onClose, onSaved, account }: Props)
             {selectedType?.isDebt && (
               <p className="mt-2 text-xs text-red-500 dark:text-red-400">
                 💳 {en
-                  ? 'Credit card balance represents what you owe (subtracted from net worth).'
-                  : 'O saldo do cartão representa o que você deve (será subtraído do seu patrimônio).'}
+                  ? 'Balance represents what you owe (subtracted from net worth).'
+                  : 'O saldo representa o que você deve (subtraído do patrimônio).'}
               </p>
             )}
           </div>
@@ -177,9 +173,7 @@ export default function AccountModal({ open, onClose, onSaved, account }: Props)
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                {selectedType?.isDebt
-                  ? (en ? 'Current bill' : 'Fatura atual')
-                  : (en ? 'Current balance' : 'Saldo atual')}
+                {selectedType?.isDebt ? (en ? 'Current bill' : 'Fatura atual') : (en ? 'Current balance' : 'Saldo atual')}
               </label>
               <input type="number" value={balance} onChange={e => setBalance(e.target.value)}
                 required min="0" step="0.01" placeholder="0.00" className={inputCls} />

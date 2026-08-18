@@ -6,15 +6,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { usePreferences } from '@/lib/preferences-context'
-import { Language, Currency } from '@/lib/i18n'
 
 export default function AppSidebar({ userEmail }: { userEmail: string }) {
   const pathname  = usePathname()
   const router    = useRouter()
-  const { tr, prefs, setLanguage, setCurrency } = usePreferences()
-  const [mobileOpen, setMobileOpen]   = useState(false)
-  const [signingOut, setSigningOut]   = useState(false)
-  const [dark, setDark]               = useState(false)
+  const { tr } = usePreferences()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+  const [dark, setDark]             = useState(false)
 
   const navItems = [
     { href: '/dashboard',    label: tr.dashboard,    icon: '📊' },
@@ -81,52 +80,8 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
         })}
       </nav>
 
-      {/* Preferences + Theme + User */}
+      {/* Theme + User */}
       <div className="border-t border-gray-100 dark:border-gray-800 p-3 space-y-2">
-
-        {/* Language + Currency toggles */}
-        <div className="flex gap-2 px-1">
-          <div className="flex-1">
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 px-1">{tr.language}</p>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-semibold">
-              {(['en', 'pt'] as Language[]).map(lang => (
-                <button
-                  key={lang}
-                  onClick={() => setLanguage(lang)}
-                  className={cn(
-                    'flex-1 py-1.5 transition-colors',
-                    prefs.language === lang
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  )}
-                >
-                  {lang === 'en' ? 'EN' : 'PT'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 px-1">{tr.currency}</p>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-semibold">
-              {(['USD', 'BRL'] as Currency[]).map(cur => (
-                <button
-                  key={cur}
-                  onClick={() => setCurrency(cur)}
-                  className={cn(
-                    'flex-1 py-1.5 transition-colors',
-                    prefs.currency === cur
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  )}
-                >
-                  {cur === 'USD' ? '$' : 'R$'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Dark mode toggle */}
         <button
           onClick={toggleTheme}
           className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
@@ -135,12 +90,10 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
           {dark ? tr.lightMode : tr.darkMode}
         </button>
 
-        {/* User email */}
         <div className="rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2">
           <p className="text-xs text-gray-400 truncate">{userEmail}</p>
         </div>
 
-        {/* Sign out */}
         <button
           onClick={handleSignOut}
           disabled={signingOut}
@@ -182,12 +135,10 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
         </div>
       </div>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile drawer */}
       <div className={cn(
         'fixed top-0 left-0 z-40 h-full w-64 bg-white dark:bg-gray-950 flex flex-col shadow-xl transition-transform lg:hidden',
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
@@ -195,7 +146,6 @@ export default function AppSidebar({ userEmail }: { userEmail: string }) {
         <SidebarContent />
       </div>
 
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:flex-shrink-0 bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-gray-800">
         <SidebarContent />
       </aside>

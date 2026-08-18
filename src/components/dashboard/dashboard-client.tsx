@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { Transaction, Account, Investment } from '@/lib/types'
-import { filterTransactions, formatDate, getCurrentMonthYear } from '@/lib/utils'
+import { filterTransactions, getCurrentMonthYear } from '@/lib/utils'
 import { CATEGORY_COLORS } from '@/lib/categories'
 import { usePreferences } from '@/lib/preferences-context'
 import CategoryChart from './category-chart'
@@ -175,46 +175,17 @@ export default function DashboardClient({ initialTransactions, initialAccounts, 
         </div>
       </div>
 
-      {/* Chart + Recent */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className={`lg:col-span-2 ${cardCls}`}>
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{tr.byCategory}</h2>
-          {categoryData.length > 0 ? (
-            <CategoryChart data={categoryData} fmt={fmt} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-              <span className="text-3xl mb-2">📭</span>
-              <p className="text-sm">{prefs.language === 'en' ? 'No expenses this period' : 'Sem despesas neste período'}</p>
-            </div>
-          )}
-        </div>
-
-        <div className={`lg:col-span-3 ${cardCls}`}>
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{tr.recentTransactions}</h2>
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-              <span className="text-3xl mb-2">📭</span>
-              <p className="text-sm">{tr.noTransactions}</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filtered.slice(0, 8).map(t => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: CATEGORY_COLORS[t.category] ?? '#6b7280' }} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{t.description}</p>
-                      <p className="text-xs text-gray-400">{t.category} · {formatDate(t.date)}</p>
-                    </div>
-                  </div>
-                  <span className={`text-sm font-semibold flex-shrink-0 ml-3 ${t.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                    {t.type === 'income' ? '+' : '-'}{fmt(t.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Category chart */}
+      <div className={cardCls}>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{tr.byCategory}</h2>
+        {categoryData.length > 0 ? (
+          <CategoryChart data={categoryData} fmt={fmt} />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+            <span className="text-3xl mb-2">📭</span>
+            <p className="text-sm">{prefs.language === 'en' ? 'No expenses this period' : 'Sem despesas neste período'}</p>
+          </div>
+        )}
       </div>
     </div>
   )
